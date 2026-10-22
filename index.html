@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#6c8cff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>抽抽乐 · 中文随机抽取</title>
+<style>
+/* 抽抽乐 ChouChouLe — 单文件中文抽取 App */
+:root{
+  --bg:#0f1115;
+  --surface:#171a21;
+  --surface-2:#1e222c;
+  --text:#f2f3f7;
+  --muted:#8b91a3;
+  --border:rgba(255,255,255,.08);
+  --accent:#6c8cff;
+  --accent-2:#a5b8ff;
+  --danger:#ff6b6b;
+  --success:#51d88a;
+  --radius:18px;
+  --radius-sm:12px;
+  --shadow:0 12px 40px rgba(0,0,0,.45);
+  --font-body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f4f5f9;
+  --surface:#ffffff;
+  --surface-2:#f0f1f6;
+  --text:#151823;
+  --muted:#6b7280;
+  --border:rgba(20,24,35,.08);
+  --accent:#4f6df5;
+  --accent-2:#2f4de0;
+  --danger:#e05252;
+  --success:#2ea86d;
+  --shadow:0 12px 32px rgba(30,35,60,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font-body);
+  background:var(--bg);
+  color:var(--text);
+  -webkit-tap-highlight-color:transparent;
+  line-height:1.5;
+  overscroll-behavior:none;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;color:inherit}
+img{display:block;max-width:100%}
+.hidden{display:none!important}
+/* 文件选择框：不能用 display:none（部分手机浏览器会拒绝打开相册），改为视觉隐藏但保持在布局中 */
+.file-input{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:.01;overflow:hidden}
+
+/* ============ App Shell ============ */
+#app{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;position:relative}
+header{
+  display:flex;align-items:center;gap:12px;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 14px;
+  position:sticky;top:0;z-index:20;
+  background:color-mix(in srgb,var(--bg) 82%, transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+}
+#headerTitle{font-size:1.15rem;font-weight:700;flex:1;letter-spacing:.5px}
+.icon-btn{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--border);
+  transition:transform .15s, background .2s;
+}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn svg{width:20px;height:20px;stroke:var(--text)}
+.icon-btn.accent{background:var(--accent);border-color:transparent}
+.icon-btn.accent svg{stroke:#fff}
+
+main{flex:1;overflow-y:auto;padding:16px 16px calc(90px + env(safe-area-inset-bottom,0px))}
+.view{animation:viewIn .25s ease}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ============ 底部导航 ============ */
+nav#tabbar{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:520px;z-index:20;
+  display:flex;justify-content:space-around;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+  background:color-mix(in srgb,var(--surface) 92%, transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--border);
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 0;border-radius:12px;color:var(--muted);font-size:.68rem;
+}
+.tab svg{width:22px;height:22px;stroke:currentColor}
+.tab.active{color:var(--accent)}
+.tab.active svg{stroke:var(--accent)}
+
+/* ============ 首页分类卡片 ============ */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin:6px 2px 12px}
+.section-head h2{font-size:.95rem;color:var(--muted);font-weight:600}
+.cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.group-card{
+  position:relative;border-radius:var(--radius);padding:16px 14px 14px;
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;flex-direction:column;gap:8px;min-height:118px;
+  transition:transform .15s, box-shadow .2s;overflow:hidden;text-align:left;
+}
+.group-card:active{transform:scale(.97)}
+.group-card::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:5px;
+  background:var(--card-color,var(--accent));
+}
+.group-card .g-name{font-weight:700;font-size:1rem;margin-top:4px;word-break:break-all}
+.group-card .g-meta{font-size:.72rem;color:var(--muted)}
+.group-card .g-count{
+  position:absolute;top:12px;right:12px;font-size:.68rem;
+  background:var(--surface-2);border:1px solid var(--border);
+  padding:2px 8px;border-radius:99px;color:var(--muted);
+}
+.empty{
+  text-align:center;padding:70px 24px;color:var(--muted);
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+.empty svg{width:64px;height:64px;stroke:var(--muted);opacity:.6}
+.empty p{font-size:.9rem;max-width:26em}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px 20px;border-radius:14px;font-weight:600;font-size:.92rem;
+  background:var(--accent);color:#fff;transition:transform .15s, opacity .2s;
+}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border)}
+.btn.danger{background:var(--danger)}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;pointer-events:none}
+
+/* ============ 分组详情（转盘页） ============ */
+#wheelWrap{
+  position:relative;width:min(86vw,340px);height:min(340px,86vw);
+  margin:18px auto 6px;
+}
+#wheelCanvas{
+  width:100%;height:100%;border-radius:50%;
+  box-shadow:0 0 0 10px var(--surface),0 0 0 12px var(--border),0 18px 50px rgba(0,0,0,.5);
+  transition:box-shadow .3s;
+}
+#wheelPointer{
+  position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  width:0;height:0;z-index:5;
+  border-left:14px solid transparent;border-right:14px solid transparent;
+  border-top:26px solid var(--danger);
+  filter:drop-shadow(0 3px 4px rgba(0,0,0,.4));
+}
+#wheelPointer::after{
+  content:"";position:absolute;top:-30px;left:-6px;width:12px;height:12px;
+  border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--danger);
+}
+#wheelHub{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:76px;height:76px;border-radius:50%;z-index:4;
+  background:var(--surface);border:3px solid var(--accent);
+  display:grid;place-items:center;box-shadow:var(--shadow);
+}
+#wheelHub svg{width:30px;height:30px;stroke:var(--accent)}
+.mode-switch{
+  display:flex;justify-content:center;gap:8px;margin:14px 0 4px;
+}
+.mode-switch .mode-btn{
+  padding:8px 16px;border-radius:99px;font-size:.8rem;font-weight:600;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--muted);
+  display:flex;align-items:center;gap:6px;
+}
+.mode-btn svg{width:16px;height:16px;stroke:currentColor}
+.mode-btn.active{background:var(--accent);color:#fff;border-color:transparent}
+.mode-btn.active svg{stroke:#fff}
+
+#bigSpinBtn{
+  display:block;margin:16px auto 0;width:min(70vw,240px);height:64px;
+  border-radius:99px;font-size:1.15rem;font-weight:800;letter-spacing:4px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#fff;box-shadow:0 10px 30px color-mix(in srgb,var(--accent) 45%, transparent);
+  transition:transform .12s;
+}
+#bigSpinBtn:active{transform:scale(.95)}
+#bigSpinBtn:disabled{opacity:.5;transform:none}
+
+#flipStage{
+  display:none;flex-direction:column;align-items:center;gap:18px;padding:26px 0 6px;
+}
+#flipCard{
+  width:min(64vw,220px);aspect-ratio:3/4;perspective:900px;position:relative;
+}
+.flip-inner{
+  position:absolute;inset:0;transform-style:preserve-3d;
+  transition:transform .5s cubic-bezier(.2,.7,.3,1.2);
+}
+.flip-face{
+  position:absolute;inset:0;border-radius:20px;backface-visibility:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:16px;text-align:center;
+}
+.flip-back{
+  background:linear-gradient(160deg,var(--accent),var(--accent-2));
+  color:#fff;font-size:2.6rem;font-weight:800;
+  box-shadow:var(--shadow);
+}
+.flip-front{
+  transform:rotateY(180deg);
+  background:var(--surface);border:2px solid var(--accent);
+  box-shadow:var(--shadow);word-break:break-all;
+}
+.flip-front .ff-text{font-size:1.4rem;font-weight:800}
+.flip-front img{width:100%;height:55%;object-fit:cover;border-radius:12px}
+#flipCard.flipped .flip-inner{transform:rotateY(180deg)}
+
+/* ============ 选项列表 ============ */
+.items-header{display:flex;align-items:center;gap:10px;margin:18px 2px 10px}
+.items-header h3{flex:1;font-size:.95rem;color:var(--muted);font-weight:600}
+.item-row{
+  display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+}
+.item-row .thumb{
+  width:44px;height:44px;border-radius:10px;flex-shrink:0;
+  background:var(--surface-2) center/cover;display:grid;place-items:center;
+  border:1px solid var(--border);overflow:hidden;
+}
+.item-row .thumb svg{width:20px;height:20px;stroke:var(--muted)}
+.item-row .i-name{flex:1;font-weight:600;word-break:break-all}
+.item-row .i-sub{font-size:.68rem;color:var(--muted)}
+.weight-badge{
+  font-size:.66rem;background:var(--surface-2);border:1px solid var(--border);
+  padding:2px 8px;border-radius:99px;color:var(--muted);white-space:nowrap;
+}
+.mini-btn{
+  width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--border);flex-shrink:0;
+}
+.mini-btn svg{width:16px;height:16px;stroke:var(--text)}
+.mini-btn.warn svg{stroke:var(--danger)}
+
+/* ============ 结果弹层 ============ */
+.overlay{
+  position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(8,10,14,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  animation:fadeIn .2s ease;
+}
+@keyframes viewIn2{from{opacity:0}to{opacity:1}}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.sheet{
+  width:100%;max-width:520px;max-height:82dvh;overflow-y:auto;
+  background:var(--surface);border-radius:24px 24px 0 0;
+  border-top:1px solid var(--border);
+  padding:14px 20px calc(20px + env(safe-area-inset-bottom,0px));
+  animation:sheetUp .3s cubic-bezier(.2,.8,.3,1);
+}
+.sheet-handle{width:42px;height:5px;border-radius:99px;background:var(--border);margin:2px auto 16px}
+.sheet h3{font-size:1.05rem;margin-bottom:12px}
+.result-hero{
+  text-align:center;padding:26px 16px;display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+.result-hero .r-label{font-size:.78rem;color:var(--muted)}
+.result-hero .r-text{font-size:1.7rem;font-weight:800;word-break:break-all;line-height:1.3}
+.result-hero img{width:150px;height:150px;object-fit:cover;border-radius:20px;box-shadow:var(--shadow)}
+.result-actions{display:flex;gap:10px;padding:0 4px 8px}
+.result-hero .confetti-emoji{font-size:2rem}
+
+/* ============ 表单/弹窗 ============ */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:6px}
+.field input[type=text],.field input[type=number],.field textarea{
+  width:100%;padding:12px 14px;border-radius:var(--radius-sm);
+  background:var(--surface-2);border:1px solid var(--border);font-size:.95rem;outline:none;
+}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{min-height:110px;resize:vertical;line-height:1.7}
+.field .hint{font-size:.68rem;color:var(--muted);margin-top:5px}
+.color-dots{display:flex;flex-wrap:wrap;gap:10px}
+.color-dot{
+  width:38px;height:38px;border-radius:50%;border:3px solid transparent;
+  transition:transform .15s, border-color .15s;
+}
+.color-dot.active{border-color:var(--text);transform:scale(1.12)}
+.seg-row{display:flex;gap:8px}
+.seg-row .seg{
+  flex:1;padding:10px;border-radius:var(--radius-sm);text-align:center;font-size:.82rem;font-weight:600;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--muted);
+}
+.seg.active{background:var(--accent);color:#fff;border-color:transparent}
+.switch-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+.switch-row:last-child{border-bottom:none}
+.switch-row .s-label{font-size:.92rem;font-weight:600}
+.switch-row .s-desc{font-size:.7rem;color:var(--muted);margin-top:2px}
+.toggle{position:relative;width:48px;height:28px;flex-shrink:0}
+.toggle input{opacity:0;width:100%;height:100%;position:absolute;z-index:2;cursor:pointer;margin:0}
+.toggle .track{
+  position:absolute;inset:0;border-radius:99px;background:var(--surface-2);border:1px solid var(--border);
+  transition:background .2s;
+}
+.toggle .track::after{
+  content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:var(--muted);transition:transform .2s, background .2s;
+}
+.toggle input:checked + .track{background:var(--accent);border-color:transparent}
+.toggle input:checked + .track::after{transform:translateX(20px);background:#fff}
+
+/* 图片选择 */
+.img-picker{display:flex;align-items:center;gap:12px}
+.img-preview{
+  width:72px;height:72px;border-radius:14px;background:var(--surface-2) center/cover;
+  border:1px dashed var(--border);display:grid;place-items:center;flex-shrink:0;overflow:hidden;
+}
+.img-preview svg{width:26px;height:26px;stroke:var(--muted)}
+.img-picker .ip-actions{display:flex;flex-direction:column;gap:8px;flex:1}
+.link-like{color:var(--accent);font-size:.82rem;font-weight:600;text-align:left;padding:0}
+
+/* ============ 历史记录 ============ */
+.history-day{font-size:.75rem;font-weight:700;color:var(--muted);margin:18px 2px 8px}
+.history-item{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+}
+.history-item .h-thumb{width:38px;height:38px;border-radius:9px;background:var(--surface-2) center/cover;flex-shrink:0;border:1px solid var(--border)}
+.history-item .h-body{flex:1;min-width:0}
+.history-item .h-text{font-weight:600;font-size:.9rem;word-break:break-all}
+.history-item .h-meta{font-size:.66rem;color:var(--muted)}
+
+/* ============ 设置页 ============ */
+.settings-group{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:6px 16px;margin-bottom:16px;
+}
+.settings-group-title{font-size:.75rem;font-weight:700;color:var(--muted);margin:14px 2px 8px;text-transform:uppercase;letter-spacing:1px}
+.preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.preset-swatch{
+  aspect-ratio:1;border-radius:14px;border:3px solid transparent;position:relative;overflow:hidden;
+  transition:transform .15s;
+}
+.preset-swatch.active{border-color:var(--text);transform:scale(1.06)}
+.preset-swatch span{
+  position:absolute;bottom:0;left:0;right:0;font-size:.58rem;text-align:center;
+  background:rgba(0,0,0,.35);color:#fff;padding:2px 0;
+}
+.about-card{text-align:center;padding:22px 10px;color:var(--muted);font-size:.78rem;line-height:2}
+.about-card .a-name{font-size:1.1rem;font-weight:800;color:var(--text)}
+
+/* toast */
+#toast{
+  position:fixed;bottom:calc(96px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--text);color:var(--bg);padding:10px 20px;border-radius:99px;
+  font-size:.84rem;font-weight:600;z-index:99;opacity:0;pointer-events:none;
+  transition:opacity .25s, transform .25s;max-width:86vw;text-align:center;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 桌面端：手机框观感 */
+@media(min-width:640px){
+  body{padding:24px 0}
+  #app{
+    min-height:calc(100dvh - 48px);border-radius:32px;overflow:hidden;
+    border:1px solid var(--border);box-shadow:var(--shadow);
+  }
+  nav#tabbar{bottom:24px;border-radius:0 0 32px 32px;border:1px solid var(--border);border-top:1px solid var(--border)}
+  header{border-radius:32px 32px 0 0}
+  .overlay{align-items:center}
+  .sheet{border-radius:24px;margin-bottom:24px}
+}
+
+/* ============ 安装横幅与指引 ============ */
+.install-banner{
+  display:flex;align-items:center;gap:12px;margin:2px 0 16px;
+  padding:12px 14px;border-radius:var(--radius);
+  background:linear-gradient(135deg, color-mix(in srgb,var(--accent) 16%, var(--surface)), var(--surface));
+  border:1px solid color-mix(in srgb,var(--accent) 40%, var(--border));
+}
+.install-banner>svg{width:26px;height:26px;stroke:var(--accent);flex-shrink:0}
+.install-banner .ib-text{flex:1;display:flex;flex-direction:column;min-width:0}
+.install-banner .ib-text b{font-size:.9rem}
+.install-banner .ib-text span{font-size:.7rem;color:var(--muted)}
+.ib-close{
+  width:30px;height:30px;border-radius:8px;color:var(--muted);
+  font-size:1.25rem;line-height:1;display:grid;place-items:center;flex-shrink:0;
+}
+.steps{padding-left:22px;display:flex;flex-direction:column;gap:10px;font-size:.9rem}
+.steps li{line-height:1.6}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="backBtn" class="icon-btn hidden" aria-label="返回">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+    </button>
+    <div id="headerTitle">抽抽乐</div>
+    <button id="newGroupBtn" class="icon-btn accent" aria-label="新建分类">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- ========== 首页：分类 ========== -->
+    <section id="view-home" class="view">
+      <div id="installBanner" class="install-banner hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+        <div class="ib-text"><b>安装到桌面</b><span>点「安装」一步直达系统确认；不支持的浏览器会显示对应步骤</span></div>
+        <button id="installOpenBtn" class="btn" style="padding:8px 16px;font-size:.8rem;flex-shrink:0">安装</button>
+        <button id="installDismiss" class="ib-close" aria-label="关闭">×</button>
+      </div>
+      <div class="section-head">
+        <h2>我的分类</h2>
+      </div>
+      <div id="cardsGrid" class="cards-grid"></div>
+      <div id="homeEmpty" class="empty hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="3"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+        </svg>
+        <p>还没有分类。新建一个分类（如「今晚吃什么」「课堂点名」），往里添加选项，就能开始抽取了。</p>
+        <button id="homeEmptyNew" class="btn">新建第一个分类</button>
+      </div>
+    </section>
+
+    <!-- ========== 分组详情：转盘 / 翻牌 ========== -->
+    <section id="view-group" class="view hidden">
+      <div class="mode-switch">
+        <button class="mode-btn" data-mode="wheel">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M12 12l6.5 5.5M12 12l-7.5 4"/></svg>
+          转盘
+        </button>
+        <button class="mode-btn" data-mode="flip">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M9 8h6M9 12h6"/></svg>
+          翻牌
+        </button>
+      </div>
+
+      <div id="wheelWrap">
+        <div id="wheelPointer"></div>
+        <canvas id="wheelCanvas"></canvas>
+        <div id="wheelHub">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.4" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.4" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.4" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.4" fill="currentColor"/></svg>
+        </div>
+      </div>
+
+      <div id="flipStage">
+        <div id="flipCard">
+          <div class="flip-inner">
+            <div class="flip-face flip-back">?</div>
+            <div class="flip-face flip-front">
+              <img id="flipFrontImg" class="hidden" alt="选项配图">
+              <div class="ff-text" id="flipFrontText"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button id="bigSpinBtn">开始抽取</button>
+
+      <div class="items-header">
+        <h3>选项列表</h3>
+        <span class="i-sub" id="itemCount"></span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="addItemBtn" class="btn ghost" style="flex:1;padding:10px">＋ 添加选项</button>
+        <button id="bulkImportBtn" class="btn ghost" style="flex:1;padding:10px">批量导入</button>
+        <button id="editGroupBtn" class="btn ghost" style="padding:10px 14px" aria-label="分类设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" width="18" height="18" style="stroke:currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        </button>
+      </div>
+      <div id="itemsList"></div>
+      <button id="resetPicksBtn" class="btn ghost block" style="margin-top:6px">重置不重复抽取</button>
+    </section>
+
+    <!-- ========== 历史 ========== -->
+    <section id="view-history" class="view hidden">
+      <div id="historyList"></div>
+      <div id="historyEmpty" class="empty hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <p>还没有抽取记录。每次抽取的结果都会自动保存在这里。</p>
+      </div>
+      <button id="clearHistoryBtn" class="btn ghost block" style="margin-top:10px">清空历史</button>
+    </section>
+
+    <!-- ========== 设置与皮肤 ========== -->
+    <section id="view-settings" class="view hidden">
+      <div class="settings-group-title">外观</div>
+      <div class="settings-group">
+        <div class="switch-row">
+          <div><div class="s-label">深色模式</div><div class="s-desc">跟随系统或手动指定</div></div>
+        </div>
+        <div class="seg-row" style="padding-bottom:14px">
+          <button class="seg" data-theme-opt="system">跟随系统</button>
+          <button class="seg" data-theme-opt="light">浅色</button>
+          <button class="seg" data-theme-opt="dark">深色</button>
+        </div>
+        <div class="field" style="padding-bottom:12px">
+          <label>主题色</label>
+          <div id="accentDots" class="color-dots"></div>
+        </div>
+        <div class="field" style="padding-bottom:12px">
+          <label>转盘配色方案</label>
+          <div id="paletteRow" class="preset-grid"></div>
+        </div>
+        <div class="field" style="padding-bottom:12px">
+          <label>背景纹理</label>
+          <div id="patternRow" class="preset-grid"></div>
+        </div>
+        <div class="field" style="padding-bottom:14px">
+          <label>自定义背景色</label>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input type="color" id="bgColorInput" value="#0f1115" style="width:52px;height:40px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);padding:2px">
+            <button id="bgColorClear" class="btn ghost" style="padding:8px 14px;font-size:.8rem">恢复默认</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group-title">抽取</div>
+      <div class="settings-group">
+        <div class="switch-row">
+          <div><div class="s-label">默认抽取模式</div><div class="s-desc">新建抽取时使用的动画</div></div>
+        </div>
+        <div class="seg-row" style="padding-bottom:14px">
+          <button class="seg" data-def-mode="wheel">转盘</button>
+          <button class="seg" data-def-mode="flip">翻牌</button>
+        </div>
+        <div class="switch-row">
+          <div><div class="s-label">不重复抽取</div><div class="s-desc">抽过的选项暂时移出奖池，可在分类页重置</div></div>
+          <span class="toggle"><input type="checkbox" id="setNoRepeat"><span class="track"></span></span>
+        </div>
+        <div class="switch-row">
+          <div><div class="s-label">缓停效果</div><div class="s-desc">转盘多转几圈再缓缓停下，更有仪式感</div></div>
+          <span class="toggle"><input type="checkbox" id="setSlowStop"><span class="track"></span></span>
+        </div>
+        <div class="switch-row">
+          <div><div class="s-label">音效</div><div class="s-desc">转盘咔哒声与中奖音</div></div>
+          <span class="toggle"><input type="checkbox" id="setSound"><span class="track"></span></span>
+        </div>
+        <div class="switch-row">
+          <div><div class="s-label">震动反馈</div><div class="s-desc">手机抽取时轻微震动</div></div>
+          <span class="toggle"><input type="checkbox" id="setHaptics"><span class="track"></span></span>
+        </div>
+      </div>
+
+      <div class="settings-group-title">数据</div>
+      <div class="settings-group">
+        <div class="switch-row">
+          <div><div class="s-label">导出备份</div><div class="s-desc">全部分类、选项与历史保存为一个文件</div></div>
+          <button id="exportBtn" class="btn ghost" style="padding:8px 14px;font-size:.8rem">导出</button>
+        </div>
+        <div class="switch-row">
+          <div><div class="s-label">导入备份</div><div class="s-desc">从备份文件恢复全部数据</div></div>
+          <button id="importBtn" class="btn ghost" style="padding:8px 14px;font-size:.8rem">导入</button>
+        </div>
+        <div class="switch-row">
+          <div><div class="s-label">清除全部数据</div><div class="s-desc">恢复初始状态，建议先导出备份</div></div>
+          <button id="clearAllBtn" class="btn danger" style="padding:8px 14px;font-size:.8rem">清除</button>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="a-name">抽抽乐</div>
+        全中文 · 无广告 · 无需联网 · 数据只存在本机<br>
+        抽取引擎设计参考开源项目 RandomFlows（GPL-3.0）<br>
+        可「添加到主屏幕」当作 App 使用<br>
+        <button id="installEntryBtn" class="btn ghost" style="margin-top:12px;padding:10px 22px">安装到桌面</button>
+      </div>
+    </section>
+  </main>
+
+  <nav id="tabbar">
+    <button class="tab active" data-view="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+      分类
+    </button>
+    <button class="tab" data-view="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      历史
+    </button>
+    <button class="tab" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+      设置
+    </button>
+  </nav>
+</div>
+
+<!-- ========== 结果弹层 ========== -->
+<div id="resultOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="result-hero">
+      <div class="confetti-emoji">🎉</div>
+      <div class="r-label" id="resultGroup"></div>
+      <div class="r-text" id="resultText"></div>
+      <img id="resultImg" class="hidden" alt="结果配图">
+    </div>
+    <div class="result-actions">
+      <button id="resultAgain" class="btn" style="flex:1">再来一次</button>
+      <button id="resultCopy" class="btn ghost" style="flex:1">复制结果</button>
+      <button id="resultClose" class="btn ghost" style="flex:1">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 选项编辑弹层 ========== -->
+<div id="itemEditorOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3 id="itemEditorTitle">添加选项</h3>
+    <div class="field">
+      <label>选项名称</label>
+      <input type="text" id="itemText" maxlength="30" placeholder="例如：火锅">
+    </div>
+    <div class="field">
+      <label>配图（可选）</label>
+      <div class="img-picker">
+        <div class="img-preview" id="imgPreview"></div>
+        <div class="ip-actions">
+          <button id="pickImgBtn" class="btn ghost" style="padding:8px 12px;font-size:.8rem">从相册选择</button>
+          <button id="imgUrlBtn" class="link-like">使用图片链接</button>
+          <button id="imgClearBtn" class="link-like" style="color:var(--muted)">移除配图</button>
+        </div>
+      </div>
+      <div class="hint">首次选择时系统会询问相册访问权限，请点击「允许」；图片仅在本地处理，不会上传</div>
+      <input type="file" id="imgFileInput" accept="image/*" class="file-input">
+    </div>
+    <div class="field">
+      <label>权重（1-10，数字越大越容易被抽中）</label>
+      <input type="number" id="itemWeight" min="1" max="10" value="1">
+    </div>
+    <div class="switch-row" style="margin-bottom:14px">
+      <div><div class="s-label">参与抽取</div></div>
+      <span class="toggle"><input type="checkbox" id="itemEnabled" checked><span class="track"></span></span>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button id="itemCancel" class="btn ghost" style="flex:1">取消</button>
+      <button id="itemSave" class="btn" style="flex:2">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 批量导入弹层 ========== -->
+<div id="bulkOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3>批量导入选项</h3>
+    <div class="field">
+      <label>每行一个选项</label>
+      <textarea id="bulkText" placeholder="火锅&#10;寿司&#10;烧烤&#10;麻辣烫"></textarea>
+      <div class="hint">与现有选项重名的会自动跳过；导入后可逐个补配图</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button id="bulkCancel" class="btn ghost" style="flex:1">取消</button>
+      <button id="bulkSave" class="btn" style="flex:2">导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 分类编辑弹层 ========== -->
+<div id="groupEditorOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3 id="groupEditorTitle">新建分类</h3>
+    <div class="field">
+      <label>分类名称</label>
+      <input type="text" id="groupName" maxlength="20" placeholder="例如：今晚吃什么、课堂点名">
+    </div>
+    <div class="field">
+      <label>分类颜色</label>
+      <div id="colorDots" class="color-dots"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button id="groupCancel" class="btn ghost" style="flex:1">取消</button>
+      <button id="groupSave" class="btn" style="flex:2">保存</button>
+    </div>
+    <button id="deleteGroupBtn" class="btn danger block" style="margin-top:12px">删除此分类</button>
+  </div>
+</div>
+
+<!-- ========== 安装指引弹层 ========== -->
+<div id="installOverlay" class="overlay hidden">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3>把「抽抽乐」安装到桌面</h3>
+    <p class="hint" style="margin-bottom:14px">安装后无需先打开浏览器，点桌面图标即可全屏使用；数据仍只保存在本机。</p>
+    <button id="installNowBtn" class="btn block hidden" style="margin-bottom:16px">立即安装</button>
+    <ol id="installSteps" class="steps"></ol>
+    <div class="hint" style="margin-top:12px">提示：若浏览器确实不支持安装，把本页加入「书签/收藏」也能随时打开，功能完全一样。</div>
+    <button id="installClose" class="btn ghost block" style="margin-top:16px">知道了</button>
+  </div>
+</div>
+
+<input type="file" id="importFileInput" accept="application/json,.json" class="file-input">
+<div id="toast"></div>
+
+<script>
+/* 抽抽乐 ChouChouLe — 核心逻辑
+ * 抽取引擎参考 RandomFlows (GPL-3.0) Roller.kt 的加权抽取与不重复标记思路重写。
+ * 数据全部保存在 localStorage，无网络请求。
+ */
+(function () {
+  "use strict";
+
+  /* ================= 工具 ================= */
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const storage = {
+    load() {
+      try {
+        const raw = localStorage.getItem("chouchoule_v1");
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    },
+    save() {
+      try { localStorage.setItem("chouchoule_v1", JSON.stringify(state)); } catch (e) { /* 存储满时静默失败，UI 仍有内存态 */ }
+    },
+  };
+
+  /* ================= 数据模型 ================= */
+  const DEFAULT_COLORS = ["#6c8cff", "#ff8a5c", "#51d88a", "#f5c04f", "#e06cd8", "#4fd1c5", "#ff6b6b", "#8d9bff"];
+  const PALETTES = {
+    vivid: ["#6c8cff", "#f5c04f", "#51d88a", "#ff6b6b", "#e06cd8", "#4fd1c5", "#ff9f43", "#8d9bff"],
+    candy: ["#ff8fab", "#ffc6d9", "#c8b6ff", "#a2d2ff", "#ffd6a5", "#b5ead7", "#ff9aa2", "#e2f0cb"],
+    fresh: ["#2ec4b6", "#cbf3f0", "#ffbf69", "#ff9f1c", "#9bf6ff", "#a0c4ff", "#bdb2ff", "#fdffb6"],
+    retro: ["#e07a5f", "#f2cc8f", "#81b29a", "#3d405b", "#f4f1de", "#bc6c25", "#606c38", "#dda15e"],
+  };
+  const PRESET_BACKGROUNDS = [
+    { id: "none", name: "纯色", css: "" },
+    { id: "dots", name: "波点", css: "radial-gradient(circle at 25% 25%, rgba(255,255,255,.14) 2px, transparent 2.5px)", size: "22px 22px" },
+    { id: "grid", name: "网格", css: "linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px)", size: "26px 26px" },
+    { id: "diagonal", name: "斜纹", css: "repeating-linear-gradient(45deg, rgba(255,255,255,.10) 0 6px, transparent 6px 16px)", size: "auto" },
+  ];
+
+  function defaultState() {
+    const g1 = uid();
+    return {
+      groups: [{
+        id: g1, name: "今晚吃什么", color: DEFAULT_COLORS[1],
+        items: [
+          { id: uid(), text: "火锅", image: "", weight: 1, enabled: true, picked: false },
+          { id: uid(), text: "寿司", image: "", weight: 1, enabled: true, picked: false },
+          { id: uid(), text: "烧烤", image: "", weight: 1, enabled: true, picked: false },
+          { id: uid(), text: "披萨", image: "", weight: 1, enabled: true, picked: false },
+          { id: uid(), text: "麻辣烫", image: "", weight: 1, enabled: true, picked: false },
+          { id: uid(), text: "轻食沙拉", image: "", weight: 1, enabled: true, picked: false },
+        ],
+      }],
+      history: [], // {id, groupName, text, image, ts}
+      settings: {
+        theme: "system",            // system | light | dark
+        palette: "vivid",           // 转盘配色方案
+        accent: DEFAULT_COLORS[0],  // 主题色
+        bgColor: "",                // 自定义背景色（空=跟随主题）
+        bgPattern: "none",          // 背景纹理
+        mode: "wheel",              // wheel | flip
+        sound: true,
+        haptics: true,
+        noRepeat: false,            // 不重复抽取（抽过的暂时移出奖池）
+        slowStop: true,             // 缓停效果
+        installDismissed: false,    // 是否已关闭安装横幅
+      },
+    };
+  }
+
+  let state = storage.load() || defaultState();
+  if (!state.groups || !Array.isArray(state.groups)) state = defaultState();
+
+  /* ================= 主题与皮肤 ================= */
+  function applySkin() {
+    const s = state.settings;
+    const sysDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const dark = s.theme === "dark" || (s.theme === "system" && sysDark);
+    document.documentElement.dataset.theme = dark ? "" : "light";
+    const root = document.documentElement.style;
+    root.setProperty("--accent", s.accent);
+    root.setProperty("--accent-2", lighten(s.accent, 0.28));
+    if (s.bgColor) root.setProperty("--bg", s.bgColor); else root.removeProperty("--bg");
+    // 背景纹理
+    const pat = PRESET_BACKGROUNDS.find((p) => p.id === s.bgPattern) || PRESET_BACKGROUNDS[0];
+    document.body.style.backgroundImage = pat.css || "";
+    document.body.style.backgroundSize = pat.size || "";
+  }
+  function lighten(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.min(255, Math.round((n >> 16) + 255 * amt));
+    const g = Math.min(255, Math.round(((n >> 8) & 255) + 255 * amt));
+    const b = Math.min(255, Math.round((n & 255) + 255 * amt));
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (state.settings.theme === "system") applySkin();
+    });
+  }
+
+  /* ================= 反馈：声音 / 震动 ================= */
+  let audioCtx = null;
+  function beep(freq, dur, type, gain) {
+    if (!state.settings.sound) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type || "sine"; o.frequency.value = freq;
+      g.gain.setValueAtTime(gain || 0.06, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + dur);
+    } catch (e) {}
+  }
+  const tickSound = () => beep(880, 0.05, "square", 0.03);
+  const winSound = () => { beep(523, 0.14); setTimeout(() => beep(659, 0.14), 130); setTimeout(() => beep(784, 0.24), 260); };
+  const vibrate = (p) => { if (state.settings.haptics && navigator.vibrate) { try { navigator.vibrate(p); } catch (e) {} } };
+
+  function toast(msg) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  /* ================= 抽取引擎（参考 RandomFlows Roller.kt） ================= */
+  function availableItems(group) {
+    return group.items.filter((it) => it.enabled && (!state.settings.noRepeat || !it.picked));
+  }
+  function weightedPick(pool) {
+    // 加权抽取：权重 3 的选项被抽中的概率是权重 1 的 3 倍
+    const total = pool.reduce((s, it) => s + Math.max(1, it.weight | 0), 0);
+    let r = 1 + Math.floor(Math.random() * total);
+    for (const it of pool) {
+      r -= Math.max(1, it.weight | 0);
+      if (r <= 0) return it;
+    }
+    return pool[pool.length - 1];
+  }
+
+  /* ================= 视图路由 ================= */
+  const views = ["home", "group", "history", "settings"];
+  let currentGroupId = null;
+  function show(view) {
+    views.forEach((v) => $("#view-" + v).classList.toggle("hidden", v !== view));
+    $$("#tabbar .tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+    const titles = { home: "抽抽乐", group: "", history: "历史记录", settings: "设置与皮肤" };
+    $("#headerTitle").textContent = view === "group" ? (getGroup(currentGroupId) || {}).name || "抽取" : titles[view];
+    $("#backBtn").classList.toggle("hidden", view !== "group");
+    if (view === "home") renderHome();
+    if (view === "group") renderGroup();
+    if (view === "history") renderHistory();
+    if (view === "settings") renderSettings();
+  }
+  function getGroup(id) { return state.groups.find((g) => g.id === id); }
+
+  /* ================= 首页 ================= */
+  function renderHome() {
+    const grid = $("#cardsGrid");
+    const empty = $("#homeEmpty");
+    if (!state.groups.length) {
+      grid.innerHTML = "";
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    grid.innerHTML = state.groups.map((g) => {
+      const n = g.items.length;
+      const imgCount = g.items.filter((i) => i.image).length;
+      return `<button class="group-card" style="--card-color:${esc(g.color)}" data-open="${g.id}">
+        <span class="g-count">${n} 个选项</span>
+        <span class="g-name">${esc(g.name)}</span>
+        <span class="g-meta">${imgCount ? imgCount + " 个已配图 · " : ""}点按开始抽取</span>
+      </button>`;
+    }).join("");
+  }
+
+  /* ================= 分组详情 ================= */
+  let wheelAngle = 0;       // 当前角度（弧度）
+  let spinning = false;
+
+  function renderGroup() {
+    const g = getGroup(currentGroupId);
+    if (!g) { show("home"); return; }
+    $("#headerTitle").textContent = g.name;
+    // 模式切换
+    $$("#view-group .mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === state.settings.mode));
+    const flip = state.settings.mode === "flip";
+    $("#wheelWrap").classList.toggle("hidden", flip);
+    $("#flipStage").style.display = flip ? "flex" : "none";
+    $("#bigSpinBtn").textContent = flip ? "翻 牌" : "开始抽取";
+    renderItemsList(g);
+    if (!flip) drawWheel(g);
+    updateSpinAvailability(g);
+  }
+  function updateSpinAvailability(g) {
+    const n = availableItems(g).length;
+    const btn = $("#bigSpinBtn");
+    btn.disabled = n === 0;
+    if (n === 0) {
+      btn.textContent = state.settings.noRepeat ? "已全部抽完 · 去重置" : "请先添加选项";
+    }
+  }
+
+  /* ---- Canvas 转盘 ---- */
+  function drawWheel(g, highlightIdx = -1) {
+    const canvas = $("#wheelCanvas");
+    const dpr = window.devicePixelRatio || 1;
+    const size = canvas.clientWidth || 320;
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const cx = size / 2, cy = size / 2, R = size / 2 - 2;
+    ctx.clearRect(0, 0, size, size);
+
+    const items = g ? g.items.filter((i) => i.enabled) : [];
+    if (!items.length) {
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface-2");
+      ctx.fill();
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--muted");
+      ctx.font = "15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("暂无选项", cx, cy);
+      return;
+    }
+    const palette = PALETTES[state.settings.palette] || PALETTES.vivid;
+    // 权重决定扇区大小（更公平地体现权重）
+    const weights = items.map((i) => Math.max(1, i.weight | 0));
+    const totalW = weights.reduce((a, b) => a + b, 0);
+    let a = wheelAngle;
+    items.forEach((it, i) => {
+      const sweep = (weights[i] / totalW) * Math.PI * 2;
+      const isPickedOut = state.settings.noRepeat && it.picked;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a, a + sweep); ctx.closePath();
+      let color = palette[i % palette.length];
+      if (isPickedOut) color = "#555a66";
+      if (i === highlightIdx) ctx.filter = "brightness(1.25)";
+      ctx.fillStyle = color; ctx.fill();
+      if (i === highlightIdx) ctx.filter = "none";
+      // 分隔线
+      ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 2; ctx.stroke();
+      // 文字
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(a + sweep / 2);
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "#fff";
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 4;
+      const label = it.text.length > 6 ? it.text.slice(0, 6) + "…" : it.text;
+      ctx.font = `700 ${Math.max(12, Math.min(17, 190 / items.length))}px sans-serif`;
+      ctx.fillText((isPickedOut ? "✕ " : "") + label, R - 12, 0);
+      ctx.restore();
+      a += sweep;
+    });
+  }
+
+  function spinWheel() {
+    const g = getGroup(currentGroupId);
+    if (!g || spinning) return;
+    const pool = availableItems(g);
+    if (!pool.length) return;
+    spinning = true;
+    $("#bigSpinBtn").disabled = true;
+    vibrate(15);
+
+    const target = weightedPick(pool);
+    const enabled = g.items.filter((i) => i.enabled);
+    const idx = enabled.indexOf(target);
+
+    // 计算目标扇区中心应停下的角度（指针在正上方 = -90°）
+    const weights = enabled.map((i) => Math.max(1, i.weight | 0));
+    const totalW = weights.reduce((a2, b) => a2 + b, 0);
+    let startA = 0;
+    for (let i = 0; i < idx; i++) startA += (weights[i] / totalW) * Math.PI * 2;
+    const sweep = (weights[idx] / totalW) * Math.PI * 2;
+    // 在扇区内留 15% 边距，避免停在边界线上
+    const inSlice = startA + sweep * (0.15 + Math.random() * 0.7);
+    const pointerA = -Math.PI / 2;
+    const norm = ((wheelAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    let delta = (pointerA - inSlice - norm) % (Math.PI * 2);
+    if (delta < 0) delta += Math.PI * 2;
+    const turns = state.settings.slowStop ? 6 : 4;
+    const finalAngle = wheelAngle + delta + Math.PI * 2 * turns;
+
+    const duration = state.settings.slowStop ? 4200 : 2800;
+    const t0 = performance.now();
+    const from = wheelAngle;
+    let lastTickSlice = -1;
+
+    function frame(now) {
+      const p = Math.min(1, (now - t0) / duration);
+      const ease = 1 - Math.pow(1 - p, 4); // easeOutQuart 缓停
+      wheelAngle = from + (finalAngle - from) * ease;
+      drawWheel(g);
+      // 经过扇区边界时的咔哒声 + 轻震
+      const sliceIdx = Math.floor((wheelAngle / (Math.PI * 2)) * enabled.length);
+      if (sliceIdx !== lastTickSlice) { lastTickSlice = sliceIdx; if (p < 0.92) { tickSound(); vibrate(4); } }
+      if (p < 1) requestAnimationFrame(frame);
+      else finishDraw(g, target);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---- 翻牌模式 ---- */
+  function flipDraw() {
+    const g = getGroup(currentGroupId);
+    if (!g || spinning) return;
+    const pool = availableItems(g);
+    if (!pool.length) return;
+    spinning = true;
+    $("#bigSpinBtn").disabled = true;
+    const card = $("#flipCard");
+    card && card.classList.remove("flipped");
+    vibrate(15);
+    // 快速洗牌抖动动画
+    card.animate(
+      [{ transform: "rotate(0deg)" }, { transform: "rotate(-6deg) scale(1.04)" }, { transform: "rotate(6deg) scale(1.04)" }, { transform: "rotate(0deg)" }],
+      { duration: 700, iterations: 2 }
+    );
+    let ticks = 0;
+    const shuffle = setInterval(() => { tickSound(); ticks++; }, 110);
+    setTimeout(() => {
+      clearInterval(shuffle);
+      const target = weightedPick(pool);
+      $("#flipFrontText").textContent = target.text;
+      const img = $("#flipFrontImg");
+      if (target.image) { img.src = target.image; img.classList.remove("hidden"); }
+      else img.classList.add("hidden");
+      card.classList.add("flipped");
+      setTimeout(() => finishDraw(g, target), 550);
+    }, 1500);
+  }
+  let card = null;
+
+  function finishDraw(g, item) {
+    spinning = false;
+    if (state.settings.noRepeat) item.picked = true;
+    state.history.unshift({ id: uid(), groupName: g.name, text: item.text, image: item.image || "", ts: Date.now() });
+    if (state.history.length > 500) state.history.length = 500;
+    storage.save();
+    winSound(); vibrate([30, 40, 60]);
+    showResult(g, item);
+    renderGroup();
+  }
+
+  /* ================= 结果弹层 ================= */
+  function showResult(g, item) {
+    $("#resultGroup").textContent = g.name;
+    $("#resultText").textContent = item.text;
+    const img = $("#resultImg");
+    if (item.image) { img.src = item.image; img.classList.remove("hidden"); }
+    else img.classList.add("hidden");
+    $("#resultOverlay").classList.remove("hidden");
+  }
+
+  /* ================= 选项列表与编辑 ================= */
+  function renderItemsList(g) {
+    const wrap = $("#itemsList");
+    $("#itemCount").textContent = `${g.items.length} 个选项` + (state.settings.noRepeat ? ` · 剩 ${availableItems(g).length} 可抽` : "");
+    if (!g.items.length) {
+      wrap.innerHTML = `<div class="empty" style="padding:34px 20px"><p>还没有选项，点击下方「添加选项」开始吧</p></div>`;
+      return;
+    }
+    wrap.innerHTML = g.items.map((it) => `
+      <div class="item-row ${state.settings.noRepeat && it.picked ? "picked" : ""}" style="${state.settings.noRepeat && it.picked ? "opacity:.45" : ""}">
+        <div class="thumb" style="${it.image ? `background-image:url('${esc(it.image)}')` : ""}">
+          ${it.image ? "" : '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>'}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="i-name">${esc(it.text)}</div>
+          <div class="i-sub">${it.enabled ? "参与抽取" : "已停用"}</div>
+        </div>
+        ${it.weight > 1 ? `<span class="weight-badge">权重 ×${it.weight}</span>` : ""}
+        <button class="mini-btn" data-edit-item="${it.id}" aria-label="编辑">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        </button>
+        <button class="mini-btn warn" data-del-item="${it.id}" aria-label="删除">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        </button>
+      </div>`).join("");
+  }
+
+  /* ---- 选项编辑弹窗 ---- */
+  let editingItemId = null;
+  let editingItemImage = "";
+  function openItemEditor(itemId) {
+    const g = getGroup(currentGroupId);
+    editingItemId = itemId || null;
+    const it = itemId ? g.items.find((x) => x.id === itemId) : null;
+    editingItemImage = (it && it.image) || "";
+    $("#itemEditorTitle").textContent = it ? "编辑选项" : "添加选项";
+    $("#itemText").value = it ? it.text : "";
+    $("#itemWeight").value = it ? String(Math.max(1, it.weight | 0)) : "1";
+    $("#itemEnabled").checked = it ? it.enabled : true;
+    updateImgPreview();
+    $("#itemEditorOverlay").classList.remove("hidden");
+  }
+  function updateImgPreview() {
+    const p = $("#imgPreview");
+    p.style.backgroundImage = editingItemImage ? `url('${editingItemImage}')` : "";
+    p.innerHTML = editingItemImage ? "" : '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
+  }
+  function saveItem() {
+    const g = getGroup(currentGroupId);
+    const text = $("#itemText").value.trim();
+    if (!text) { toast("请输入选项名称"); return; }
+    const weight = Math.max(1, Math.min(10, parseInt($("#itemWeight").value, 10) || 1));
+    if (editingItemId) {
+      const it = g.items.find((x) => x.id === editingItemId);
+      Object.assign(it, { text, weight, image: editingItemImage, enabled: $("#itemEnabled").checked });
+    } else {
+      g.items.push({ id: uid(), text, weight, image: editingItemImage, enabled: $("#itemEnabled").checked, picked: false });
+    }
+    storage.save();
+    $("#itemEditorOverlay").classList.add("hidden");
+    renderGroup();
+    toast(editingItemId ? "已保存" : "已添加");
+  }
+
+  /* ---- 图片处理：压缩为 dataURL ---- */
+  function handleImageFile(file) {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { toast("图片不能超过 8MB"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 480;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        editingItemImage = c.toDataURL("image/jpeg", 0.82);
+        updateImgPreview();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ---- 批量导入 ---- */
+  function openBulkImport() {
+    $("#bulkText").value = "";
+    $("#bulkOverlay").classList.remove("hidden");
+  }
+  function doBulkImport() {
+    const g = getGroup(currentGroupId);
+    const lines = $("#bulkText").value.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (!lines.length) { toast("请输入内容，每行一个选项"); return; }
+    let added = 0;
+    lines.forEach((t) => {
+      if (!g.items.some((i) => i.text === t)) { g.items.push({ id: uid(), text: t, image: "", weight: 1, enabled: true, picked: false }); added++; }
+    });
+    storage.save();
+    $("#bulkOverlay").classList.add("hidden");
+    renderGroup();
+    toast(`已导入 ${added} 个选项${added < lines.length ? "（重复项已跳过）" : ""}`);
+  }
+
+  /* ---- 分组编辑 ---- */
+  let editingGroupId = null;
+  function openGroupEditor(groupId) {
+    editingGroupId = groupId || null;
+    const g = groupId ? getGroup(groupId) : null;
+    $("#groupEditorTitle").textContent = g ? "编辑分类" : "新建分类";
+    $("#groupName").value = g ? g.name : "";
+    renderColorDots(g ? g.color : DEFAULT_COLORS[state.groups.length % DEFAULT_COLORS.length]);
+    $("#groupEditorOverlay").classList.remove("hidden");
+  }
+  let pickedGroupColor = DEFAULT_COLORS[0];
+  function renderColorDots(selected) {
+    pickedGroupColor = selected;
+    $("#colorDots").innerHTML = DEFAULT_COLORS.map((c) =>
+      `<button class="color-dot ${c === selected ? "active" : ""}" style="background:${c}" data-color="${c}" aria-label="颜色"></button>`).join("");
+  }
+  function saveGroup() {
+    const name = $("#groupName").value.trim();
+    if (!name) { toast("请输入分类名称"); return; }
+    if (editingGroupId) {
+      const g = getGroup(editingGroupId);
+      g.name = name; g.color = pickedGroupColor;
+    } else {
+      state.groups.push({ id: uid(), name, color: pickedGroupColor, items: [] });
+    }
+    storage.save();
+    $("#groupEditorOverlay").classList.add("hidden");
+    if (currentGroupId && $("#view-group").classList.contains("hidden") === false) renderGroup();
+    renderHome();
+    toast(editingGroupId ? "已保存" : "分类已创建");
+  }
+
+  /* ================= 历史 ================= */
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function dayLabel(ts) {
+    const d = new Date(ts), now = new Date();
+    const sameDay = (a, b) => a.toDateString() === b.toDateString();
+    if (sameDay(d, now)) return "今天";
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    if (sameDay(d, y)) return "昨天";
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+  function renderHistory() {
+    const wrap = $("#historyList");
+    const empty = $("#historyEmpty");
+    if (!state.history.length) { wrap.innerHTML = ""; empty.classList.remove("hidden"); return; }
+    empty.classList.add("hidden");
+    let html = "", day = "";
+    state.history.forEach((h) => {
+      const dl = dayLabel(h.ts);
+      if (dl !== day) { day = dl; html += `<div class="history-day">${dl}</div>`; }
+      html += `<div class="history-item">
+        <div class="h-thumb" style="${h.image ? `background-image:url('${esc(h.image)}')` : ""}"></div>
+        <div class="h-body">
+          <div class="h-text">${esc(h.text)}</div>
+          <div class="h-meta">${esc(h.groupName)} · ${fmtTime(h.ts)}</div>
+        </div>
+        <button class="mini-btn" data-copy="${esc(h.text)}" aria-label="复制">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>`;
+    });
+    wrap.innerHTML = html;
+  }
+
+  /* ================= 设置与皮肤 ================= */
+  function renderSettings() {
+    const s = state.settings;
+    // 主题
+    $$("#view-settings [data-theme-opt]").forEach((b) => b.classList.toggle("active", b.dataset.themeOpt === s.theme));
+    // 主题色
+    $("#accentDots").innerHTML = DEFAULT_COLORS.map((c) =>
+      `<button class="color-dot ${c === s.accent ? "active" : ""}" style="background:${c}" data-accent="${c}" aria-label="主题色"></button>`).join("");
+    // 转盘配色
+    $("#paletteRow").innerHTML = Object.entries(PALETTES).map(([key, arr]) =>
+      `<button class="preset-swatch ${key === s.palette ? "active" : ""}" data-palette="${key}"
+        style="background:conic-gradient(${arr.slice(0, 6).map((c, i) => `${c} ${i * 60}deg ${(i + 1) * 60}deg`).join(",")})">
+        <span>${{ vivid: "缤纷", candy: "糖果", fresh: "清新", retro: "复古" }[key]}</span>
+      </button>`).join("");
+    // 背景纹理
+    $("#patternRow").innerHTML = PRESET_BACKGROUNDS.map((p) =>
+      `<button class="preset-swatch ${p.id === s.bgPattern ? "active" : ""}" data-pattern="${p.id}"
+        style="background-color:var(--surface-2);${p.css ? `background-image:${p.css};background-size:${p.size}` : ""}">
+        <span>${p.name}</span>
+      </button>`).join("");
+    // 开关
+    $("#setSound").checked = s.sound;
+    $("#setHaptics").checked = s.haptics;
+    $("#setNoRepeat").checked = s.noRepeat;
+    $("#setSlowStop").checked = s.slowStop;
+    // 默认模式
+    $$("#view-settings [data-def-mode]").forEach((b) => b.classList.toggle("active", b.dataset.defMode === s.mode));
+  }
+
+  /* ================= 备份 / 恢复 ================= */
+  function exportBackup() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `抽抽乐备份-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast("备份文件已导出");
+  }
+  function importBackup(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data.groups || !Array.isArray(data.groups) || !data.settings) throw new Error("bad");
+        state = data;
+        state.history = state.history || [];
+        storage.save();
+        applySkin();
+        show("home");
+        toast("数据已恢复");
+      } catch (e) { toast("备份文件格式不正确"); }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ================= 事件绑定 ================= */
+  function bind() {
+    card = $("#flipCard");
+    // 导航
+    $$("#tabbar .tab").forEach((t) => t.addEventListener("click", () => show(t.dataset.view)));
+    $("#backBtn").addEventListener("click", () => show("home"));
+    // 首页
+    $("#cardsGrid").addEventListener("click", (e) => {
+      const c = e.target.closest("[data-open]");
+      if (c) { currentGroupId = c.dataset.open; show("group"); }
+    });
+    $("#newGroupBtn").addEventListener("click", () => openGroupEditor(null));
+    $("#homeEmptyNew").addEventListener("click", () => openGroupEditor(null));
+    // 分组页
+    $$("#view-group .mode-btn").forEach((b) => b.addEventListener("click", () => {
+      state.settings.mode = b.dataset.mode; storage.save(); renderGroup();
+    }));
+    $("#bigSpinBtn").addEventListener("click", () => { state.settings.mode === "flip" ? flipDraw() : spinWheel(); });
+    $("#addItemBtn").addEventListener("click", () => openItemEditor(null));
+    $("#bulkImportBtn").addEventListener("click", openBulkImport);
+    $("#editGroupBtn").addEventListener("click", () => openGroupEditor(currentGroupId));
+    $("#resetPicksBtn").addEventListener("click", () => {
+      const g = getGroup(currentGroupId);
+      g.items.forEach((i) => (i.picked = false));
+      storage.save(); renderGroup(); toast("已重置，全部选项回到奖池");
+    });
+    $("#itemsList").addEventListener("click", (e) => {
+      const ed = e.target.closest("[data-edit-item]");
+      const del = e.target.closest("[data-del-item]");
+      if (ed) openItemEditor(ed.dataset.editItem);
+      if (del) {
+        const g = getGroup(currentGroupId);
+        const it = g.items.find((x) => x.id === del.dataset.delItem);
+        if (confirm(`删除选项「${it.text}」？`)) {
+          g.items = g.items.filter((x) => x.id !== del.dataset.delItem);
+          storage.save(); renderGroup(); toast("已删除");
+        }
+      }
+    });
+    // 结果弹层
+    $("#resultClose").addEventListener("click", () => $("#resultOverlay").classList.add("hidden"));
+    $("#resultCopy").addEventListener("click", () => {
+      const t = $("#resultText").textContent;
+      copyText(t);
+    });
+    $("#resultAgain").addEventListener("click", () => {
+      $("#resultOverlay").classList.add("hidden");
+      state.settings.mode === "flip" ? flipDraw() : spinWheel();
+    });
+    // 选项编辑
+    $("#itemSave").addEventListener("click", saveItem);
+    $("#itemCancel").addEventListener("click", () => $("#itemEditorOverlay").classList.add("hidden"));
+    $("#imgFileInput").addEventListener("change", (e) => handleImageFile(e.target.files[0]));
+    $("#pickImgBtn").addEventListener("click", () => {
+      const fi = $("#imgFileInput");
+      fi.value = ""; // 允许重复选择同一张图
+      try { fi.click(); } catch (e) { toast("浏览器阻止了相册访问，请检查权限设置"); }
+    });
+    $("#imgUrlBtn").addEventListener("click", () => {
+      const u = prompt("输入图片链接（https://…）", editingItemImage && !editingItemImage.startsWith("data:") ? editingItemImage : "");
+      if (u !== null) { editingItemImage = u.trim(); updateImgPreview(); }
+    });
+    $("#imgClearBtn").addEventListener("click", () => { editingItemImage = ""; updateImgPreview(); });
+    // 批量导入
+    $("#bulkSave").addEventListener("click", doBulkImport);
+    $("#bulkCancel").addEventListener("click", () => $("#bulkOverlay").classList.add("hidden"));
+    // 分组编辑
+    $("#groupSave").addEventListener("click", saveGroup);
+    $("#groupCancel").addEventListener("click", () => $("#groupEditorOverlay").classList.add("hidden"));
+    $("#colorDots").addEventListener("click", (e) => {
+      const d = e.target.closest("[data-color]");
+      if (d) renderColorDots(d.dataset.color);
+    });
+    $("#deleteGroupBtn").addEventListener("click", () => {
+      const g = getGroup(editingGroupId || currentGroupId);
+      if (!g) return;
+      if (state.groups.length <= 1) { toast("至少保留一个分类"); return; }
+      if (confirm(`删除分类「${g.name}」及其全部选项？此操作不可恢复。`)) {
+        state.groups = state.groups.filter((x) => x.id !== g.id);
+        storage.save();
+        $("#groupEditorOverlay").classList.add("hidden");
+        show("home");
+        toast("分类已删除");
+      }
+    });
+    // 历史
+    $("#historyList").addEventListener("click", (e) => {
+      const c = e.target.closest("[data-copy]");
+      if (c) copyText(c.dataset.copy);
+    });
+    $("#clearHistoryBtn").addEventListener("click", () => {
+      if (confirm("清空全部历史记录？")) { state.history = []; storage.save(); renderHistory(); toast("历史已清空"); }
+    });
+    // 设置
+    $$("#view-settings [data-theme-opt]").forEach((b) => b.addEventListener("click", () => {
+      state.settings.theme = b.dataset.themeOpt; storage.save(); applySkin(); renderSettings();
+    }));
+    $("#accentDots").addEventListener("click", (e) => {
+      const d = e.target.closest("[data-accent]");
+      if (d) { state.settings.accent = d.dataset.accent; storage.save(); applySkin(); renderSettings(); }
+    });
+    $("#paletteRow").addEventListener("click", (e) => {
+      const d = e.target.closest("[data-palette]");
+      if (d) { state.settings.palette = d.dataset.palette; storage.save(); renderSettings(); toast("转盘配色已更换"); }
+    });
+    $("#patternRow").addEventListener("click", (e) => {
+      const d = e.target.closest("[data-pattern]");
+      if (d) { state.settings.bgPattern = d.dataset.pattern; storage.save(); applySkin(); renderSettings(); }
+    });
+    $("#bgColorInput").addEventListener("change", (e) => {
+      state.settings.bgColor = e.target.value; storage.save(); applySkin();
+    });
+    $("#bgColorClear").addEventListener("click", () => {
+      state.settings.bgColor = ""; storage.save(); applySkin(); toast("背景色已恢复默认");
+    });
+    $$("#view-settings [data-def-mode]").forEach((b) => b.addEventListener("click", () => {
+      state.settings.mode = b.dataset.defMode; storage.save(); renderSettings();
+    }));
+    [["#setSound", "sound"], ["#setHaptics", "haptics"], ["#setNoRepeat", "noRepeat"], ["#setSlowStop", "slowStop"]].forEach(([sel, key]) => {
+      $(sel).addEventListener("change", (e) => { state.settings[key] = e.target.checked; storage.save(); });
+    });
+    // 备份
+    $("#exportBtn").addEventListener("click", exportBackup);
+    $("#importFileInput").addEventListener("change", (e) => importBackup(e.target.files[0]));
+    $("#importBtn").addEventListener("click", () => {
+      const fi = $("#importFileInput");
+      fi.value = "";
+      fi.click();
+    });
+    $("#clearAllBtn").addEventListener("click", () => {
+      if (confirm("清除全部数据并恢复出厂状态？建议先导出备份。")) {
+        state = defaultState(); storage.save(); applySkin(); show("home"); toast("已恢复初始状态");
+      }
+    });
+    // 弹层点击遮罩关闭
+    $$(".overlay").forEach((o) => o.addEventListener("click", (e) => {
+      if (e.target === o && o.id !== "resultOverlay") o.classList.add("hidden");
+    }));
+    // 窗口尺寸变化时重绘转盘
+    window.addEventListener("resize", () => {
+      if (!$("#view-group").classList.contains("hidden") && state.settings.mode === "wheel") drawWheel(getGroup(currentGroupId));
+    });
+  }
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(() => toast("已复制"), () => toast("复制失败"));
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = t; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("已复制"); } catch (e) { toast("复制失败"); }
+      ta.remove();
+    }
+  }
+
+  /* ================= PWA ================= */
+  function setupPWA() {
+    try {
+      if (/^https?:$/.test(location.protocol)) {
+        // HTTPS 部署时：使用标准 manifest + Service Worker，满足 Chrome/Edge 可安装条件
+        const link0 = document.createElement("link");
+        link0.rel = "manifest";
+        link0.href = "manifest.webmanifest";
+        document.head.appendChild(link0);
+        if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+        return;
+      }
+      // 本地文件打开时的兜底（浏览器不支持安装本地文件，仅保证功能正常运行）
+      const iconSvg = encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="110" fill="#6c8cff"/><circle cx="256" cy="256" r="150" fill="none" stroke="#fff" stroke-width="26"/><circle cx="256" cy="256" r="34" fill="#fff"/><path d="M256 106v60M256 396v60M106 256h60M346 256h60" stroke="#fff" stroke-width="26" stroke-linecap="round"/></svg>`);
+      const manifest = {
+        name: "抽抽乐", short_name: "抽抽乐", start_url: ".", display: "standalone",
+        background_color: "#0f1115", theme_color: "#6c8cff",
+        icons: [192, 512].map((s) => ({ src: `data:image/svg+xml,${iconSvg}`, sizes: `${s}x${s}`, type: "image/svg+xml" })),
+      };
+      const link = document.createElement("link");
+      link.rel = "manifest";
+      link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/json" }));
+      document.head.appendChild(link);
+    } catch (e) {}
+  }
+
+  /* ================= 安装到桌面（应用内指引） ================= */
+  let deferredInstallPrompt = null;
+  const INSTALL_STEPS = {
+    wechat: ["点击右上角「···」菜单", "选择「在浏览器打开」（建议用系统浏览器或 Chrome）", "打开后点浏览器菜单，选择「添加到主屏幕」或「安装应用」"],
+    ios: ["点击底部工具栏的「分享」按钮（方框加向上箭头的图标）", "在弹出的菜单中向下滑动", "点击「添加到主屏幕」，再点右上角「添加」"],
+    android: ["用 https:// 网址打开后：直接点本页「安装」按钮，或浏览器菜单「⋮」→「安装应用」", "在系统确认弹窗中点「安装」，桌面即出现图标", "若菜单里仍没有：菜单 →「添加到主屏幕」可创建普通快捷方式"],
+    desktop: ["点击浏览器右上角菜单（⋮ 或 ⋯）", "找到「保存并分享」或「更多工具」", "选择「创建快捷方式」或「将此页面安装为应用」"],
+  };
+  function detectPlatform() {
+    const ua = navigator.userAgent;
+    if (/MicroMessenger/i.test(ua)) return "wechat";
+    if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+    if (/Android/i.test(ua)) return "android";
+    return "desktop";
+  }
+  function openInstallGuide() {
+    const isLocal = !/^https?:$/.test(location.protocol);
+    const steps = INSTALL_STEPS[detectPlatform()];
+    let html = "";
+    if (isLocal) {
+      html += `<li style="color:var(--danger);font-weight:600">检测到当前打开的是手机上的本地文件——任何浏览器都禁止安装本地文件，这就是安装按钮变灰或消失的原因。</li>
+      <li>解决办法：把随附的部署包上传到任意免费静态托管（Gitee Pages / GitHub Pages / Vercel，详见包内「部署说明.txt」），用分配到的 https:// 网址打开后，本按钮即可一键安装，浏览器菜单里的「安装应用」也会恢复可用。</li>`;
+    }
+    html += steps.map((s) => `<li>${esc(s)}</li>`).join("");
+    $("#installSteps").innerHTML = html;
+    $("#installNowBtn").classList.toggle("hidden", !deferredInstallPrompt);
+    $("#installOverlay").classList.remove("hidden");
+  }
+  function setupInstall() {
+    if (state.settings.installDismissed !== true) $("#installBanner").classList.remove("hidden");
+    // 支持的浏览器（如安卓 Chrome / 桌面 Edge）会触发原生安装事件
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+    });
+    window.addEventListener("appinstalled", () => {
+      state.settings.installDismissed = true; storage.save();
+      $("#installBanner").classList.add("hidden");
+      $("#installOverlay").classList.add("hidden");
+      toast("已安装到桌面");
+    });
+    $("#installOpenBtn").addEventListener("click", async () => {
+      // 支持原生安装的浏览器：点「安装」直接弹系统安装确认，一步完成
+      if (deferredInstallPrompt) {
+        try {
+          deferredInstallPrompt.prompt();
+          const r = await deferredInstallPrompt.userChoice;
+          if (r && r.outcome === "accepted") {
+            state.settings.installDismissed = true; storage.save();
+            $("#installBanner").classList.add("hidden");
+            toast("已开始安装，稍候桌面会出现图标");
+            deferredInstallPrompt = null;
+            return;
+          }
+        } catch (e) {}
+        deferredInstallPrompt = null;
+      }
+      // 不支持直装的浏览器：自动给出对应浏览器的操作步骤
+      openInstallGuide();
+    });
+    $("#installEntryBtn").addEventListener("click", openInstallGuide);
+    $("#installDismiss").addEventListener("click", () => {
+      state.settings.installDismissed = true; storage.save();
+      $("#installBanner").classList.add("hidden");
+    });
+    $("#installClose").addEventListener("click", () => $("#installOverlay").classList.add("hidden"));
+    $("#installNowBtn").addEventListener("click", async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      try {
+        const r = await deferredInstallPrompt.userChoice;
+        if (r && r.outcome === "accepted") {
+          state.settings.installDismissed = true; storage.save();
+          $("#installBanner").classList.add("hidden");
+          $("#installOverlay").classList.add("hidden");
+          toast("已开始安装");
+        }
+      } catch (e) {}
+      deferredInstallPrompt = null;
+      $("#installNowBtn").classList.add("hidden");
+    });
+  }
+
+  /* ================= 启动 ================= */
+  applySkin();
+  bind();
+  setupPWA();
+  setupInstall();
+  show("home");
+})();
+
+</script>
+</body>
+</html>
